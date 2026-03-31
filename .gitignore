@@ -119,3 +119,5 @@ debug/
 **/.dist_test
 sandbox*
 *.sh
+
+sample_data/

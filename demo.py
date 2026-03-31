@@ -16,8 +16,11 @@ import cv2
 import numpy as np
 import torch
 from sam_3d_body import load_sam_3d_body, SAM3DBodyEstimator
+from sam_3d_body.visualization.renderer import Renderer
 from tools.vis_utils import visualize_sample, visualize_sample_together
 from tqdm import tqdm
+
+LIGHT_BLUE = (0.65098039, 0.74117647, 0.85882353)
 
 
 def main(args):
@@ -93,10 +96,26 @@ def main(args):
 
         img = cv2.imread(image_path)
         rend_img = visualize_sample_together(img, outputs, estimator.faces)
+        image_name = os.path.splitext(os.path.basename(image_path))[0]
         cv2.imwrite(
-            f"{output_folder}/{os.path.basename(image_path)[:-4]}.jpg",
+            os.path.join(output_folder, f"{image_name}.jpg"),
             rend_img.astype(np.uint8),
         )
+
+        if args.save_mesh:
+            for pid, person_output in enumerate(outputs):
+                renderer = Renderer(
+                    focal_length=person_output["focal_length"], faces=estimator.faces
+                )
+                mesh = renderer.vertices_to_trimesh(
+                    person_output["pred_vertices"],
+                    person_output["pred_cam_t"],
+                    LIGHT_BLUE,
+                )
+                mesh_path = os.path.join(
+                    output_folder, f"{image_name}_mesh_{pid:03d}.{args.mesh_format}"
+                )
+                mesh.export(mesh_path)
 
 
 if __name__ == "__main__":
@@ -185,6 +204,19 @@ if __name__ == "__main__":
         action="store_true",
         default=False,
         help="Use mask-conditioned prediction (segmentation mask is automatically generated from bbox)",
+    )
+    parser.add_argument(
+        "--save_mesh",
+        action="store_true",
+        default=False,
+        help="Save a mesh file for each detected person per image.",
+    )
+    parser.add_argument(
+        "--mesh_format",
+        choices=["ply", "obj"],
+        default="ply",
+        type=str,
+        help="Mesh file format used when --save_mesh is set (default: ply).",
     )
     args = parser.parse_args()
 
